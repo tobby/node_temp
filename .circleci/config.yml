@@ -1,0 +1,78 @@
+version: 2.1
+
+orbs:
+  gke-utils: chuka/gke-utils@1.0.0
+
+workflows:
+  version: 2
+  deployments:
+    jobs:
+      - gke-utils/node-tests:
+          name: tests
+          working-dir: app
+          test-block:
+            - run:
+                name: Run Tests
+                command: |
+                  cd app
+                  NODE_ENV=test yarn test
+      - gke-utils/deploy-pr:
+          name: deploy-pr
+          context: ms-clients
+          gke-cluster: goliath
+          image: node-svc
+          tag: $CIRCLE_SHA1
+          environment: dev
+          secrets-from-namespace: development
+          hostname-suffix: godutch.live
+          requires:
+            - tests
+          filters:
+            branches:
+              only: /feature\/.*/
+      - gke-utils/deployment:
+          name: deploy-development
+          context: ms-clients
+          gke-cluster: goliath
+          image: node-svc # pass service name here
+          tag: $CIRCLE_SHA1
+          namespace: development
+          environment: dev
+          hostname-suffix: godutch.live
+          tag-stable: true
+          requires:
+            - tests
+          filters:
+            branches:
+              only: develop
+      - gke-utils/deployment:
+          name: deploy-staging
+          context: ms-clients
+          gke-cluster: goliath
+          image: node-svc # pass service name here
+          tag: $CIRCLE_SHA1
+          namespace: staging
+          environment: staging
+          hostname-suffix: godutch.live
+          tag-stable: true
+          requires:
+            - tests
+          filters:
+            branches:
+              only: master
+      - gke-utils/deployment:
+          name: deploy-prod
+          context: ms-clients
+          gke-cluster: goliath
+          image: node-svc # pass service name here
+          tag: $CIRCLE_TAG
+          namespace: production
+          environment: production
+          hostname-suffix: godutch.live
+          tag-stable: true
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      
